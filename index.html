@@ -157,7 +157,6 @@
   const pendingRequests = {};
 
   window.addEventListener('message', function(event) {
-    if (event.source !== bridge.contentWindow) return;
 
     const data = event.data || {};
 
