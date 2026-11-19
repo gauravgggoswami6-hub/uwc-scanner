@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UWC Scanner Test</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #0f172a;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+    }
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 15px;
+    }
+    button {
+      width: 100%;
+      padding: 16px;
+      margin: 10px 0;
+      border: 0;
+      border-radius: 10px;
+      font-size: 17px;
+      font-weight: bold;
+      color: white;
+      background: #16a34a;
+    }
+    #reader {
+      width: 100%;
+      margin-top: 15px;
+    }
+    #status {
+      margin-top: 15px;
+      padding: 12px;
+      background: #334155;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>UWC CAMERA TEST</h2>
+    <button onclick="startCamera()">START CAMERA</button>
+    <button onclick="stopCamera()" style="background:#dc2626">
+      STOP CAMERA
+    </button>
+    <div id="reader"></div>
+    <div id="status">Camera Ready</div>
+  </div>
+
+  <script>
+    let scanner = null;
+
+    async function startCamera() {
+      try {
+        scanner = new Html5Qrcode("reader");
+
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 230 },
+          function(decodedText) {
+            document.getElementById("status").textContent =
+              "QR DETECTED: " + decodedText;
+            stopCamera();
+          }
+        );
+
+        document.getElementById("status").textContent =
+          "CAMERA STARTED SUCCESSFULLY";
+
+      } catch (error) {
+        document.getElementById("status").textContent =
+          "ERROR: " + error;
+      }
+    }
+
+    async function stopCamera() {
+      if (scanner) {
+        try {
+          if (scanner.isScanning) await scanner.stop();
+          scanner.clear();
+        } catch(e) {}
+        scanner = null;
+      }
+    }
+  </script>
+</body>
+</html>
