@@ -2,92 +2,311 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>UWC Scanner Test</title>
+  <title>UWC Packing & Dispatch Scanner</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+
   <style>
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      padding: 20px;
+      padding: 18px;
       background: #0f172a;
       color: white;
-      font-family: Arial;
-      text-align: center;
+      font-family: Arial, sans-serif;
     }
-    .card {
+
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
       background: #1e293b;
-      padding: 20px;
-      border-radius: 15px;
+      padding: 22px;
+      border-radius: 18px;
+      box-shadow: 0 8px 25px #0005;
     }
+
+    h1 {
+      text-align: center;
+      font-size: 25px;
+      margin: 8px 0;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
     button {
       width: 100%;
-      padding: 16px;
-      margin: 10px 0;
+      padding: 17px;
+      margin: 8px 0;
       border: 0;
       border-radius: 10px;
+      color: white;
       font-size: 17px;
       font-weight: bold;
-      color: white;
-      background: #16a34a;
+      cursor: pointer;
     }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .packing { background: #16a34a; }
+    .dispatch { background: #2563eb; }
+    .stop { background: #dc2626; }
+    .reset { background: #475569; }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 9px;
+      border: 1px solid #475569;
+      font-size: 16px;
+      margin: 8px 0 14px;
+    }
+
     #reader {
       width: 100%;
-      margin-top: 15px;
+      margin-top: 16px;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #fff;
     }
-    #status {
-      margin-top: 15px;
-      padding: 12px;
+
+    #result {
+      margin-top: 18px;
+      padding: 16px;
       background: #334155;
-      border-radius: 8px;
+      border-radius: 10px;
+      text-align: center;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .label {
+      display: block;
+      margin-top: 18px;
+      font-weight: bold;
+    }
+
+    .footer {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+      margin-top: 20px;
     }
   </style>
 </head>
+
 <body>
-  <div class="card">
-    <h2>UWC CAMERA TEST</h2>
-    <button onclick="startCamera()">START CAMERA</button>
-    <button onclick="stopCamera()" style="background:#dc2626">
-      STOP CAMERA
-    </button>
-    <div id="reader"></div>
-    <div id="status">Camera Ready</div>
+
+<div class="container">
+  <h1>UWC PACKING & DISPATCH</h1>
+  <div class="subtitle">BOX QR SCANNER</div>
+
+  <button class="packing" onclick="startScan('PACKING')">
+    PACKING SCAN
+  </button>
+
+  <button class="dispatch" onclick="startScan('DISPATCH')">
+    DISPATCH SCAN
+  </button>
+
+  <div id="reader"></div>
+
+  <button class="stop" onclick="stopScan()">
+    STOP CAMERA
+  </button>
+
+  <label class="label">Dispatch Vehicle Number</label>
+  <input id="vehicleNo" placeholder="Enter Vehicle Number">
+
+  <div id="result">Connecting to UWC ERP...</div>
+
+  <button class="reset" onclick="resetScanner()">
+    SCAN NEXT BOX
+  </button>
+
+  <div class="footer">
+    UWC PACKING & DISPATCH ERP
   </div>
+</div>
 
-  <script>
-    let scanner = null;
+<iframe
+  id="bridge"
+  src="https://script.google.com/macros/s/AKfycbxYAWxepPk5fkHWp0565Od5i1kPKDL1BeJWeKS-ZyUefoZbppViAsvIsQU-Mq8qb-iikQ/exec?bridge=1"
+  style="display:none"
+  aria-hidden="true">
+</iframe>
 
-    async function startCamera() {
-      try {
-        scanner = new Html5Qrcode("reader");
+<script>
+  const bridge = document.getElementById('bridge');
+  const resultBox = document.getElementById('result');
 
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 230 },
-          function(decodedText) {
-            document.getElementById("status").textContent =
-              "QR DETECTED: " + decodedText;
-            stopCamera();
+  let bridgeReady = false;
+  let scanner = null;
+  let scanMode = '';
+  let processing = false;
+  let requestNumber = 0;
+
+  const pendingRequests = {};
+
+  window.addEventListener('message', function(event) {
+    if (event.source !== bridge.contentWindow) return;
+
+    const data = event.data || {};
+
+    if (data.type === 'UWC_BRIDGE_READY') {
+      bridgeReady = true;
+      resultBox.textContent = 'ERP CONNECTED - Ready to scan.';
+      return;
+    }
+
+    if (data.type === 'UWC_SCAN_RESULT') {
+      const callback = pendingRequests[data.requestId];
+      if (!callback) return;
+
+      delete pendingRequests[data.requestId];
+      callback(data.response);
+    }
+  });
+
+  function sendToERP(boxId, mode) {
+    if (!bridgeReady) {
+      resultBox.textContent =
+        'ERP Bridge connect nahi hua. Page reload karke try karein.';
+      processing = false;
+      return;
+    }
+
+    const requestId = 'UWC-' + (++requestNumber);
+
+    resultBox.textContent = 'Processing ' + boxId + '...';
+
+    pendingRequests[requestId] = function(response) {
+      if (response && response.success) {
+        resultBox.textContent =
+          'SUCCESS!\n\nBox: ' + response.boxId +
+          '\nStatus: ' + response.status +
+          '\n' + response.message;
+      } else {
+        resultBox.textContent =
+          'WARNING!\n\n' +
+          ((response && response.message) || 'Unknown error');
+      }
+
+      processing = false;
+    };
+
+    bridge.contentWindow.postMessage({
+      type: 'UWC_SCAN',
+      requestId: requestId,
+      boxId: boxId,
+      scanType: mode,
+      vehicleNo: document.getElementById('vehicleNo').value
+    }, '*');
+  }
+
+  async function startScan(mode) {
+    if (processing) return;
+
+    if (!window.isSecureContext || !navigator.mediaDevices) {
+      resultBox.textContent =
+        'Camera requires a secure HTTPS browser.';
+      return;
+    }
+
+    if (typeof Html5Qrcode === 'undefined') {
+      resultBox.textContent =
+        'Scanner library load nahi hui. Internet check karein.';
+      return;
+    }
+
+    if (!bridgeReady) {
+      resultBox.textContent =
+        'ERP Bridge abhi connect ho raha hai. Thoda wait karein.';
+      return;
+    }
+
+    await stopScan();
+
+    scanMode = mode;
+    processing = false;
+
+    scanner = new Html5Qrcode('reader');
+
+    resultBox.textContent = mode + ' CAMERA STARTING...';
+
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 240, height: 240 },
+          aspectRatio: 1
+        },
+        async function(decodedText) {
+          if (processing) return;
+          processing = true;
+
+          let boxId = '';
+
+          try {
+            const url = new URL(decodedText);
+            boxId = url.searchParams.get('box') || '';
+          } catch (error) {
+            boxId = decodedText.trim();
           }
-        );
 
-        document.getElementById("status").textContent =
-          "CAMERA STARTED SUCCESSFULLY";
+          if (!/^BOX-[A-Z0-9-]+$/i.test(boxId)) {
+            resultBox.textContent = 'Invalid Box QR Code';
+            processing = false;
+            return;
+          }
 
-      } catch (error) {
-        document.getElementById("status").textContent =
-          "ERROR: " + error;
-      }
+          await stopScan();
+          sendToERP(boxId, scanMode);
+        }
+      );
+
+      resultBox.textContent = mode + ' CAMERA READY - QR scan karein.';
+
+    } catch (error) {
+      processing = false;
+      resultBox.textContent =
+        'CAMERA ERROR: ' + (error.message || String(error));
     }
+  }
 
-    async function stopCamera() {
-      if (scanner) {
-        try {
-          if (scanner.isScanning) await scanner.stop();
-          scanner.clear();
-        } catch(e) {}
-        scanner = null;
+  async function stopScan() {
+    if (!scanner) return;
+
+    const oldScanner = scanner;
+    scanner = null;
+
+    try {
+      if (oldScanner.isScanning) {
+        await oldScanner.stop();
       }
+      oldScanner.clear();
+    } catch (error) {
+      console.log(error);
     }
-  </script>
+  }
+
+  async function resetScanner() {
+    await stopScan();
+    processing = false;
+    resultBox.textContent =
+      bridgeReady ? 'Ready for next Box.' : 'Connecting to ERP...';
+  }
+</script>
+
 </body>
 </html>
