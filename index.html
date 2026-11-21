@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -106,6 +107,7 @@
 <body>
 
 <div class="container">
+
   <h1>UWC PACKING & DISPATCH</h1>
   <div class="subtitle">BOX QR SCANNER</div>
 
@@ -135,6 +137,7 @@
   <div class="footer">
     UWC PACKING & DISPATCH ERP
   </div>
+
 </div>
 
 <iframe
@@ -145,6 +148,7 @@
 </iframe>
 
 <script>
+
   const bridge = document.getElementById('bridge');
   const resultBox = document.getElementById('result');
 
@@ -156,29 +160,46 @@
 
   const pendingRequests = {};
 
+  // RECEIVE MESSAGE FROM ERP BRIDGE
   window.addEventListener('message', function(event) {
 
     const data = event.data || {};
 
+    // BRIDGE READY
     if (data.type === 'UWC_BRIDGE_READY') {
+
       bridgeReady = true;
-      resultBox.textContent = 'ERP CONNECTED - Ready to scan.';
+
+      resultBox.textContent =
+        'ERP CONNECTED - Ready to scan.\n' +
+        'Bridge Origin: ' + (data.debugOrigin || event.origin);
+
       return;
     }
 
+    // SCAN RESULT
     if (data.type === 'UWC_SCAN_RESULT') {
+
       const callback = pendingRequests[data.requestId];
+
       if (!callback) return;
 
       delete pendingRequests[data.requestId];
+
       callback(data.response);
     }
+
   });
 
+
+  // SEND SCAN DATA TO ERP
   function sendToERP(boxId, mode) {
+
     if (!bridgeReady) {
+
       resultBox.textContent =
         'ERP Bridge connect nahi hua. Page reload karke try karein.';
+
       processing = false;
       return;
     }
@@ -188,47 +209,64 @@
     resultBox.textContent = 'Processing ' + boxId + '...';
 
     pendingRequests[requestId] = function(response) {
+
       if (response && response.success) {
+
         resultBox.textContent =
           'SUCCESS!\n\nBox: ' + response.boxId +
           '\nStatus: ' + response.status +
           '\n' + response.message;
+
       } else {
+
         resultBox.textContent =
           'WARNING!\n\n' +
           ((response && response.message) || 'Unknown error');
+
       }
 
       processing = false;
     };
 
     bridge.contentWindow.postMessage({
+
       type: 'UWC_SCAN',
       requestId: requestId,
       boxId: boxId,
       scanType: mode,
       vehicleNo: document.getElementById('vehicleNo').value
+
     }, '*');
+
   }
 
+
+  // START CAMERA SCANNER
   async function startScan(mode) {
+
     if (processing) return;
 
     if (!window.isSecureContext || !navigator.mediaDevices) {
+
       resultBox.textContent =
         'Camera requires a secure HTTPS browser.';
+
       return;
     }
 
     if (typeof Html5Qrcode === 'undefined') {
+
       resultBox.textContent =
         'Scanner library load nahi hui. Internet check karein.';
+
       return;
     }
 
     if (!bridgeReady) {
+
       resultBox.textContent =
         'ERP Bridge abhi connect ho raha hai. Thoda wait karein.';
+
       return;
     }
 
@@ -242,68 +280,107 @@
     resultBox.textContent = mode + ' CAMERA STARTING...';
 
     try {
+
       await scanner.start(
+
         { facingMode: 'environment' },
+
         {
           fps: 10,
           qrbox: { width: 240, height: 240 },
           aspectRatio: 1
         },
+
         async function(decodedText) {
+
           if (processing) return;
+
           processing = true;
 
           let boxId = '';
 
           try {
+
             const url = new URL(decodedText);
+
             boxId = url.searchParams.get('box') || '';
+
           } catch (error) {
+
             boxId = decodedText.trim();
+
           }
 
           if (!/^BOX-[A-Z0-9-]+$/i.test(boxId)) {
+
             resultBox.textContent = 'Invalid Box QR Code';
+
             processing = false;
             return;
           }
 
           await stopScan();
+
           sendToERP(boxId, scanMode);
+
         }
+
       );
 
-      resultBox.textContent = mode + ' CAMERA READY - QR scan karein.';
+      resultBox.textContent =
+        mode + ' CAMERA READY - QR scan karein.';
 
     } catch (error) {
+
       processing = false;
+
       resultBox.textContent =
         'CAMERA ERROR: ' + (error.message || String(error));
+
     }
+
   }
 
+
+  // STOP CAMERA
   async function stopScan() {
+
     if (!scanner) return;
 
     const oldScanner = scanner;
     scanner = null;
 
     try {
+
       if (oldScanner.isScanning) {
         await oldScanner.stop();
       }
+
       oldScanner.clear();
+
     } catch (error) {
+
       console.log(error);
+
     }
+
   }
 
+
+  // SCAN NEXT BOX
   async function resetScanner() {
+
     await stopScan();
+
     processing = false;
+
     resultBox.textContent =
-      bridgeReady ? 'Ready for next Box.' : 'Connecting to ERP...';
+      bridgeReady
+        ? 'Ready for next Box.'
+        : 'Connecting to ERP...';
+
   }
+
 </script>
 
 </body>
