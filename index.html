@@ -27,11 +27,7 @@
       box-shadow: 0 8px 25px #0005;
     }
 
-    h1 {
-      text-align: center;
-      font-size: 25px;
-      margin: 8px 0;
-    }
+    h1 { text-align: center; font-size: 25px; margin: 8px 0; }
 
     .subtitle {
       text-align: center;
@@ -51,15 +47,13 @@
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
 
     .packing { background: #16a34a; }
     .dispatch { background: #2563eb; }
     .stop { background: #dc2626; }
     .reset { background: #475569; }
+    .login { background: #0891b2; }
 
     input {
       width: 100%;
@@ -101,6 +95,8 @@
       font-size: 12px;
       margin-top: 20px;
     }
+
+    .hidden { display: none; }
   </style>
 </head>
 
@@ -111,162 +107,256 @@
   <h1>UWC PACKING & DISPATCH</h1>
   <div class="subtitle">BOX QR SCANNER</div>
 
-  <button class="packing" onclick="startScan('PACKING')">
-    PACKING SCAN
-  </button>
+  <div id="loginPanel">
+    <h3>Operator Login</h3>
+    <label class="label" for="pinInput">Enter 6-Digit PIN</label>
+    <input id="pinInput" type="password"
+      inputmode="numeric" maxlength="6"
+      placeholder="Enter Scanner PIN">
+    <button class="login" id="loginButton" onclick="loginOperator()">
+      LOGIN
+    </button>
+  </div>
 
-  <button class="dispatch" onclick="startScan('DISPATCH')">
-    DISPATCH SCAN
-  </button>
+  <div id="scannerPanel" class="hidden">
 
-  <div id="reader"></div>
+    <button class="packing" onclick="startScan('PACKING')">
+      PACKING SCAN
+    </button>
 
-  <button class="stop" onclick="stopScan()">
-    STOP CAMERA
-  </button>
+    <button class="dispatch" onclick="startScan('DISPATCH')">
+      DISPATCH SCAN
+    </button>
 
-  <label class="label">Dispatch Vehicle Number</label>
-  <input id="vehicleNo" placeholder="Enter Vehicle Number">
+    <div id="reader"></div>
+
+    <button class="stop" onclick="stopScan()">STOP CAMERA</button>
+
+    <label class="label">Dispatch Vehicle Number</label>
+    <input id="vehicleNo" placeholder="Enter Vehicle Number">
+
+    <button class="reset" onclick="resetScanner()">SCAN NEXT BOX</button>
+
+    <button class="reset" onclick="logoutOperator()">LOGOUT</button>
+  </div>
 
   <div id="result">Connecting to UWC ERP...</div>
 
-  <button class="reset" onclick="resetScanner()">
-    SCAN NEXT BOX
-  </button>
-
-  <div class="footer">
-    UWC PACKING & DISPATCH ERP
-  </div>
+  <div class="footer">UWC PACKING & DISPATCH ERP</div>
 
 </div>
 
-<iframe
-  id="bridge"
-  src="https://script.google.com/macros/s/AKfycbxYAWxepPk5fkHWp0565Od5i1kPKDL1BeJWeKS-ZyUefoZbppViAsvIsQU-Mq8qb-iikQ/exec?bridge=1"
-  style="display:block;width:100%;height:130px;border:2px solid red"
-  aria-hidden="true">
-</iframe>
+<!-- Hidden frame receives Apps Script POST response -->
+<iframe name="erpPostFrame" id="erpPostFrame"
+  style="display:none"></iframe>
 
 <script>
+  const ERP_URL =
+    'https://script.google.com/macros/s/AKfycbxYAWxepPk5fkHWp0565Od5i1kPKDL1BeJWeKS-ZyUefoZbppViAsvIsQU-Mq8qb-iikQ/exec';
 
-  const bridge = document.getElementById('bridge');
+  const TOKEN_KEY = 'UWC_SCANNER_SESSION';
+
   const resultBox = document.getElementById('result');
+  const loginPanel = document.getElementById('loginPanel');
+  const scannerPanel = document.getElementById('scannerPanel');
+  const loginButton = document.getElementById('loginButton');
 
-  let bridgeReady = false;
   let scanner = null;
   let scanMode = '';
   let processing = false;
   let requestNumber = 0;
-
+  let sessionToken = '';
   const pendingRequests = {};
 
-  // RECEIVE MESSAGE FROM ERP BRIDGE
+  function showLogin(message) {
+    sessionToken = '';
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+
+    loginPanel.classList.remove('hidden');
+    scannerPanel.classList.add('hidden');
+    resultBox.textContent = message || 'Operator login required.';
+  }
+
+  function showScanner() {
+    loginPanel.classList.add('hidden');
+    scannerPanel.classList.remove('hidden');
+    resultBox.textContent = 'ERP CONNECTED - Ready to scan.';
+  }
+
+  // RECEIVE ERP RESPONSE
   window.addEventListener('message', function(event) {
+    let host = '';
+
+    try { host = new URL(event.origin).hostname; } catch (e) {}
+
+    if (
+      host !== 'script.google.com' &&
+      !host.endsWith('.googleusercontent.com')
+    ) return;
 
     const data = event.data || {};
+    const callback = pendingRequests[data.requestId];
 
-    // BRIDGE READY
-    if (data.type === 'UWC_BRIDGE_READY') {
+    if (!callback) return;
 
-      bridgeReady = true;
-
-      resultBox.textContent =
-        'ERP CONNECTED - Ready to scan.\n' +
-        'Bridge Origin: ' + (data.debugOrigin || event.origin);
-
-      return;
-    }
-
-    // SCAN RESULT
-    if (data.type === 'UWC_SCAN_RESULT') {
-
-      const callback = pendingRequests[data.requestId];
-
-      if (!callback) return;
-
-      delete pendingRequests[data.requestId];
-
-      callback(data.response);
-    }
-
+    delete pendingRequests[data.requestId];
+    callback(data.response, data.type);
   });
 
+  // SEND FORM POST TO APPS SCRIPT
+  function sendRequest(fields, callback) {
+    const requestId = 'UWC-' + Date.now() + '-' + (++requestNumber);
+    fields.requestId = requestId;
 
-  // SEND SCAN DATA TO ERP
-  function sendToERP(boxId, mode) {
+    pendingRequests[requestId] = function(response, type) {
+      clearTimeout(timeout);
+      callback(response, type);
+    };
 
-    if (!bridgeReady) {
+    const timeout = setTimeout(function() {
+      if (!pendingRequests[requestId]) return;
 
-      resultBox.textContent =
-        'ERP Bridge connect nahi hua. Page reload karke try karein.';
+      delete pendingRequests[requestId];
+      callback({
+        success: false,
+        message: 'ERP response timeout. Internet check karke dobara try karein.'
+      }, '');
+    }, 20000);
 
-      processing = false;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = ERP_URL;
+    form.target = 'erpPostFrame';
+    form.style.display = 'none';
+
+    Object.keys(fields).forEach(function(key) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = String(fields[key] == null ? '' : fields[key]);
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  }
+
+  // OPERATOR LOGIN
+  function loginOperator() {
+    if (loginButton.disabled) return;
+
+    const pin = document.getElementById('pinInput').value.trim();
+
+    if (!/^\d{6}$/.test(pin)) {
+      resultBox.textContent = 'Please enter a valid 6-digit PIN.';
       return;
     }
 
-    const requestId = 'UWC-' + (++requestNumber);
+    loginButton.disabled = true;
+    resultBox.textContent = 'Verifying PIN...';
+
+    sendRequest({
+      action: 'login',
+      pin: pin
+    }, function(response) {
+      loginButton.disabled = false;
+      document.getElementById('pinInput').value = '';
+
+      if (response && response.success && response.token) {
+        sessionToken = response.token;
+
+        try {
+          localStorage.setItem(TOKEN_KEY, sessionToken);
+        } catch (e) {
+          resultBox.textContent = 'Browser storage unavailable. Please enable it.';
+          showLogin(resultBox.textContent);
+          return;
+        }
+
+        showScanner();
+      } else {
+        resultBox.textContent =
+          (response && response.message) || 'Login failed.';
+      }
+    });
+  }
+
+  // CHECK SAVED LOGIN
+  function restoreLogin() {
+    try {
+      sessionToken = localStorage.getItem(TOKEN_KEY) || '';
+    } catch (e) {
+      sessionToken = '';
+    }
+
+    if (!sessionToken) {
+      showLogin('Enter PIN for first-time login.');
+      return;
+    }
+
+    showScanner();
+  }
+
+  // SEND SCAN DATA
+  function sendToERP(boxId, mode) {
+    if (!sessionToken) {
+      processing = false;
+      showLogin('Login required. Please enter PIN.');
+      return;
+    }
 
     resultBox.textContent = 'Processing ' + boxId + '...';
 
-    pendingRequests[requestId] = function(response) {
+    sendRequest({
+      action: 'scan',
+      token: sessionToken,
+      boxId: boxId,
+      scanType: mode,
+      vehicleNo: document.getElementById('vehicleNo').value
+    }, function(response) {
+
+      if (
+        response &&
+        response.success === false &&
+        String(response.message || '').toLowerCase().includes('session')
+      ) {
+        processing = false;
+        showLogin('Session expired. Please login again.');
+        return;
+      }
 
       if (response && response.success) {
-
         resultBox.textContent =
           'SUCCESS!\n\nBox: ' + response.boxId +
           '\nStatus: ' + response.status +
           '\n' + response.message;
-
       } else {
-
         resultBox.textContent =
           'WARNING!\n\n' +
           ((response && response.message) || 'Unknown error');
-
       }
 
       processing = false;
-    };
-
-    bridge.contentWindow.postMessage({
-
-      type: 'UWC_SCAN',
-      requestId: requestId,
-      boxId: boxId,
-      scanType: mode,
-      vehicleNo: document.getElementById('vehicleNo').value
-
-    }, '*');
-
+    });
   }
 
-
-  // START CAMERA SCANNER
+  // START CAMERA
   async function startScan(mode) {
-
     if (processing) return;
 
+    if (!sessionToken) {
+      showLogin('Please login before scanning.');
+      return;
+    }
+
     if (!window.isSecureContext || !navigator.mediaDevices) {
-
-      resultBox.textContent =
-        'Camera requires a secure HTTPS browser.';
-
+      resultBox.textContent = 'Camera requires a secure HTTPS browser.';
       return;
     }
 
     if (typeof Html5Qrcode === 'undefined') {
-
-      resultBox.textContent =
-        'Scanner library load nahi hui. Internet check karein.';
-
-      return;
-    }
-
-    if (!bridgeReady) {
-
-      resultBox.textContent =
-        'ERP Bridge abhi connect ho raha hai. Thoda wait karein.';
-
+      resultBox.textContent = 'Scanner library load nahi hui. Internet check karein.';
       return;
     }
 
@@ -274,25 +364,19 @@
 
     scanMode = mode;
     processing = false;
-
     scanner = new Html5Qrcode('reader');
 
     resultBox.textContent = mode + ' CAMERA STARTING...';
 
     try {
-
       await scanner.start(
-
         { facingMode: 'environment' },
-
         {
           fps: 10,
           qrbox: { width: 240, height: 240 },
           aspectRatio: 1
         },
-
         async function(decodedText) {
-
           if (processing) return;
 
           processing = true;
@@ -300,87 +384,61 @@
           let boxId = '';
 
           try {
-
             const url = new URL(decodedText);
-
             boxId = url.searchParams.get('box') || '';
-
           } catch (error) {
-
             boxId = decodedText.trim();
-
           }
 
           if (!/^BOX-[A-Z0-9-]+$/i.test(boxId)) {
-
             resultBox.textContent = 'Invalid Box QR Code';
-
             processing = false;
             return;
           }
 
           await stopScan();
-
           sendToERP(boxId, scanMode);
-
         }
-
       );
 
-      resultBox.textContent =
-        mode + ' CAMERA READY - QR scan karein.';
-
+      resultBox.textContent = mode + ' CAMERA READY - QR scan karein.';
     } catch (error) {
-
       processing = false;
-
       resultBox.textContent =
         'CAMERA ERROR: ' + (error.message || String(error));
-
     }
-
   }
-
 
   // STOP CAMERA
   async function stopScan() {
-
     if (!scanner) return;
 
     const oldScanner = scanner;
     scanner = null;
 
     try {
-
-      if (oldScanner.isScanning) {
-        await oldScanner.stop();
-      }
-
+      if (oldScanner.isScanning) await oldScanner.stop();
       oldScanner.clear();
-
     } catch (error) {
-
       console.log(error);
-
     }
-
   }
 
-
-  // SCAN NEXT BOX
+  // NEXT BOX
   async function resetScanner() {
-
     await stopScan();
-
     processing = false;
-
-    resultBox.textContent =
-      bridgeReady
-        ? 'Ready for next Box.'
-        : 'Connecting to ERP...';
-
+    resultBox.textContent = 'Ready for next Box.';
   }
 
+  // LOGOUT
+  async function logoutOperator() {
+    await stopScan();
+    processing = false;
+    showLogin('Logged out. Enter PIN to login again.');
+  }
+
+  restoreLogin();
 </script>
 
 </body>
