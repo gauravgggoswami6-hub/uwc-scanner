@@ -113,6 +113,7 @@
     <input id="pinInput" type="password"
       inputmode="numeric" maxlength="6"
       placeholder="Enter Scanner PIN">
+
     <button class="login" id="loginButton" onclick="loginOperator()">
       LOGIN
     </button>
@@ -146,7 +147,6 @@
 
 </div>
 
-<!-- Hidden frame receives Apps Script POST response -->
 <iframe name="erpPostFrame" id="erpPostFrame"
   style="display:none"></iframe>
 
@@ -208,12 +208,14 @@
     const requestId = 'UWC-' + Date.now() + '-' + (++requestNumber);
     fields.requestId = requestId;
 
+    let timeout;
+
     pendingRequests[requestId] = function(response, type) {
       clearTimeout(timeout);
       callback(response, type);
     };
 
-    const timeout = setTimeout(function() {
+    timeout = setTimeout(function() {
       if (!pendingRequests[requestId]) return;
 
       delete pendingRequests[requestId];
@@ -298,22 +300,24 @@
     showScanner();
   }
 
-  // SEND SCAN DATA
-  function sendToERP(boxId, mode) {
+  // SEND SCAN DATA WITH BOTH SO AND BOX ID
+  function sendToERP(boxId, soNo, mode) {
     if (!sessionToken) {
       processing = false;
       showLogin('Login required. Please enter PIN.');
       return;
     }
 
-    resultBox.textContent = 'Processing ' + boxId + '...';
+    resultBox.textContent =
+      'Processing...\nSO: ' + soNo + '\nBox: ' + boxId;
 
     sendRequest({
       action: 'scan',
       token: sessionToken,
       boxId: boxId,
+      soNo: soNo,
       scanType: mode,
-      vehicleNo: document.getElementById('vehicleNo').value
+      vehicleNo: document.getElementById('vehicleNo').value.trim()
     }, function(response) {
 
       if (
@@ -328,13 +332,14 @@
 
       if (response && response.success) {
         resultBox.textContent =
-          'SUCCESS!\n\nBox: ' + response.boxId +
+          'SUCCESS!\n\nSO: ' + soNo +
+          '\nBox: ' + response.boxId +
           '\nStatus: ' + response.status +
           '\n' + response.message;
       } else {
         resultBox.textContent =
           'WARNING!\n\n' +
-          ((response && response.message) || 'Unknown error');
+          ((response && response.message) || 'Unknown ERP error');
       }
 
       processing = false;
@@ -382,26 +387,59 @@
           processing = true;
 
           let boxId = '';
+          let soNo = '';
 
+          // Read SO and Box ID from QR URL
           try {
             const url = new URL(decodedText);
-            boxId = url.searchParams.get('box') || '';
+
+            boxId = url.searchParams.get('box') ||
+                    url.searchParams.get('boxId') || '';
+
+            soNo = url.searchParams.get('so') ||
+                   url.searchParams.get('soNo') ||
+                   url.searchParams.get('so_no') || '';
+
           } catch (error) {
-            boxId = decodedText.trim();
+
+            // JSON QR support
+            try {
+              const payload = JSON.parse(decodedText);
+
+              boxId = payload.boxId || payload.box || '';
+              soNo = payload.soNo || payload.so || payload.so_no || '';
+
+            } catch (jsonError) {
+              // Plain BOX-only QR is not accepted.
+            }
           }
 
+          boxId = String(boxId).trim();
+          soNo = String(soNo).trim();
+
           if (!/^BOX-[A-Z0-9-]+$/i.test(boxId)) {
-            resultBox.textContent = 'Invalid Box QR Code';
+            resultBox.textContent =
+              'INVALID QR: Box ID missing or invalid. QR mein SO Number aur Box ID dono hone chahiye.';
+
+            processing = false;
+            return;
+          }
+
+          if (!soNo) {
+            resultBox.textContent =
+              'INVALID QR: SO Number missing. Sticker ka QR SO number + Box ID dono ke saath regenerate karein.';
+
             processing = false;
             return;
           }
 
           await stopScan();
-          sendToERP(boxId, scanMode);
+          sendToERP(boxId, soNo, scanMode);
         }
       );
 
       resultBox.textContent = mode + ' CAMERA READY - QR scan karein.';
+
     } catch (error) {
       processing = false;
       resultBox.textContent =
