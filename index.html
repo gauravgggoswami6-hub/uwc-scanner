@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,161 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UWC Packing & Dispatch Scanner</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
-
   <style>
     * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      padding: 18px;
-      background: #0f172a;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
-
-    .container {
-      max-width: 600px;
-      margin: 20px auto;
-      background: #1e293b;
-      padding: 22px;
-      border-radius: 18px;
-      box-shadow: 0 8px 25px #0005;
-    }
-
-    h1 { text-align: center; font-size: 25px; margin: 8px 0; }
-
-    .subtitle {
-      text-align: center;
-      color: #94a3b8;
-      margin-bottom: 24px;
-    }
-
-    button {
-      width: 100%;
-      padding: 17px;
-      margin: 8px 0;
-      border: 0;
-      border-radius: 10px;
-      color: white;
-      font-size: 17px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:disabled { opacity: .5; cursor: not-allowed; }
-
-    .packing { background: #16a34a; }
-    .dispatch { background: #2563eb; }
-    .stop { background: #dc2626; }
-    .reset { background: #475569; }
-    .login { background: #0891b2; }
-
-    input {
-      width: 100%;
-      padding: 14px;
-      border-radius: 9px;
-      border: 1px solid #475569;
-      font-size: 16px;
-      margin: 8px 0 14px;
-    }
-
-    #reader {
-      width: 100%;
-      margin-top: 16px;
-      overflow: hidden;
-      border-radius: 12px;
-      background: #fff;
-    }
-
-    #result {
-      margin-top: 18px;
-      padding: 16px;
-      background: #334155;
-      border-radius: 10px;
-      text-align: center;
-      white-space: pre-wrap;
-      line-height: 1.6;
-      overflow-wrap: anywhere;
-    }
-
-    .label {
-      display: block;
-      margin-top: 18px;
-      font-weight: bold;
-    }
-
-    .footer {
-      text-align: center;
-      color: #94a3b8;
-      font-size: 12px;
-      margin-top: 20px;
-    }
-
-    .hidden { display: none; }
+    body { margin:0; padding:18px; background:#0f172a; color:white; font-family:Arial,sans-serif; }
+    .container { width:100%; max-width:600px; margin:20px auto; background:#1e293b; padding:22px; border-radius:18px; box-shadow:0 8px 25px #0005; }
+    h1 { text-align:center; font-size:25px; margin:8px 0; }
+    .subtitle { text-align:center; color:#94a3b8; margin-bottom:24px; }
+    button { width:100%; padding:17px; margin:8px 0; border:0; border-radius:10px; color:white; font-size:17px; font-weight:bold; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .packing { background:#16a34a; } .dispatch { background:#2563eb; } .stop { background:#dc2626; } .reset { background:#475569; } .login { background:#0891b2; }
+    input { width:100%; padding:14px; border-radius:9px; border:1px solid #475569; font-size:16px; margin:8px 0 14px; }
+    #reader { width:100%; max-width:440px; min-height:300px; margin:16px auto; overflow:hidden; border-radius:12px; background:#fff; }
+    #reader video { width:100% !important; height:auto !important; object-fit:cover; }
+    #reader img { max-width:100%; }
+    #reader__scan_region { min-height:260px; }
+    #result { margin-top:18px; padding:16px; background:#334155; border-radius:10px; text-align:center; white-space:pre-wrap; line-height:1.6; overflow-wrap:anywhere; }
+    .label { display:block; margin-top:18px; font-weight:bold; }
+    .footer { text-align:center; color:#94a3b8; font-size:12px; margin-top:20px; }
+    .hidden { display:none; }
+    @media (max-width:480px) { body{padding:10px;} .container{margin:8px auto;padding:15px;} #reader{max-width:100%;min-height:280px;} }
   </style>
 </head>
-
 <body>
-
 <div class="container">
-
   <h1>UWC PACKING & DISPATCH</h1>
   <div class="subtitle">BOX QR SCANNER</div>
-
   <div id="loginPanel">
     <h3>Operator Login</h3>
     <label class="label" for="pinInput">Enter 6-Digit PIN</label>
-    <input id="pinInput" type="password"
-      inputmode="numeric" maxlength="6"
-      placeholder="Enter Scanner PIN">
-
-    <button class="login" id="loginButton" onclick="loginOperator()">
-      LOGIN
-    </button>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="Enter Scanner PIN">
+    <button class="login" id="loginButton" onclick="loginOperator()">LOGIN</button>
   </div>
-
   <div id="scannerPanel" class="hidden">
-
-    <button class="packing" onclick="startScan('PACKING')">
-      PACKING SCAN
-    </button>
-
-    <button class="dispatch" onclick="startScan('DISPATCH')">
-      DISPATCH SCAN
-    </button>
-
+    <button class="packing" onclick="startScan('PACKING')">PACKING SCAN</button>
+    <button class="dispatch" onclick="startScan('DISPATCH')">DISPATCH SCAN</button>
     <div id="reader"></div>
-
     <button class="stop" onclick="stopScan()">STOP CAMERA</button>
-
     <label class="label">Dispatch Vehicle Number</label>
     <input id="vehicleNo" placeholder="Enter Vehicle Number">
-
     <button class="reset" onclick="resetScanner()">SCAN NEXT BOX</button>
-
     <button class="reset" onclick="logoutOperator()">LOGOUT</button>
   </div>
-
   <div id="result">Connecting to UWC ERP...</div>
-
   <div class="footer">UWC PACKING & DISPATCH ERP</div>
-
 </div>
-
-<iframe name="erpPostFrame" id="erpPostFrame"
-  style="display:none"></iframe>
-
+<iframe name="erpPostFrame" id="erpPostFrame" style="display:none"></iframe>
 <script>
-  const ERP_URL =
-    'https://script.google.com/macros/s/AKfycbxYAWxepPk5fkHWp0565Od5i1kPKDL1BeJWeKS-ZyUefoZbppViAsvIsQU-Mq8qb-iikQ/exec';
-
+  const ERP_URL = 'https://script.google.com/macros/s/AKfycbxYAWxepPk5fkHWp0565Od5i1kPKDL1BeJWeKS-ZyUefoZbppViAsvIsQU-Mq8qb-iikQ/exec';
   const TOKEN_KEY = 'UWC_SCANNER_SESSION';
-
   const resultBox = document.getElementById('result');
   const loginPanel = document.getElementById('loginPanel');
   const scannerPanel = document.getElementById('scannerPanel');
   const loginButton = document.getElementById('loginButton');
-
   let scanner = null;
   let scanMode = '';
   let processing = false;
@@ -171,7 +67,6 @@
   function showLogin(message) {
     sessionToken = '';
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-
     loginPanel.classList.remove('hidden');
     scannerPanel.classList.add('hidden');
     resultBox.textContent = message || 'Operator login required.';
@@ -183,301 +78,169 @@
     resultBox.textContent = 'ERP CONNECTED - Ready to scan.';
   }
 
-  // RECEIVE ERP RESPONSE
   window.addEventListener('message', function(event) {
     let host = '';
-
     try { host = new URL(event.origin).hostname; } catch (e) {}
-
-    if (
-      host !== 'script.google.com' &&
-      !host.endsWith('.googleusercontent.com')
-    ) return;
-
+    if (host !== 'script.google.com' && !host.endsWith('.googleusercontent.com')) return;
     const data = event.data || {};
     const callback = pendingRequests[data.requestId];
-
     if (!callback) return;
-
     delete pendingRequests[data.requestId];
     callback(data.response, data.type);
   });
 
-  // SEND FORM POST TO APPS SCRIPT
   function sendRequest(fields, callback) {
     const requestId = 'UWC-' + Date.now() + '-' + (++requestNumber);
     fields.requestId = requestId;
-
     let timeout;
-
-    pendingRequests[requestId] = function(response, type) {
-      clearTimeout(timeout);
-      callback(response, type);
-    };
-
+    pendingRequests[requestId] = function(response, type) { clearTimeout(timeout); callback(response, type); };
     timeout = setTimeout(function() {
       if (!pendingRequests[requestId]) return;
-
       delete pendingRequests[requestId];
-      callback({
-        success: false,
-        message: 'ERP response timeout. Internet check karke dobara try karein.'
-      }, '');
+      callback({ success:false, message:'ERP response timeout. Internet check karke dobara try karein.' }, '');
     }, 20000);
-
     const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = ERP_URL;
-    form.target = 'erpPostFrame';
-    form.style.display = 'none';
-
+    form.method = 'POST'; form.action = ERP_URL; form.target = 'erpPostFrame'; form.style.display = 'none';
     Object.keys(fields).forEach(function(key) {
       const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = key;
+      input.type = 'hidden'; input.name = key;
       input.value = String(fields[key] == null ? '' : fields[key]);
       form.appendChild(input);
     });
-
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
+    document.body.appendChild(form); form.submit(); form.remove();
   }
 
-  // OPERATOR LOGIN
   function loginOperator() {
     if (loginButton.disabled) return;
-
     const pin = document.getElementById('pinInput').value.trim();
-
-    if (!/^\d{6}$/.test(pin)) {
-      resultBox.textContent = 'Please enter a valid 6-digit PIN.';
-      return;
-    }
-
-    loginButton.disabled = true;
-    resultBox.textContent = 'Verifying PIN...';
-
-    sendRequest({
-      action: 'login',
-      pin: pin
-    }, function(response) {
+    if (!/^\d{6}$/.test(pin)) { resultBox.textContent = 'Please enter a valid 6-digit PIN.'; return; }
+    loginButton.disabled = true; resultBox.textContent = 'Verifying PIN...';
+    sendRequest({ action:'login', pin:pin }, function(response) {
       loginButton.disabled = false;
       document.getElementById('pinInput').value = '';
-
       if (response && response.success && response.token) {
         sessionToken = response.token;
-
-        try {
-          localStorage.setItem(TOKEN_KEY, sessionToken);
-        } catch (e) {
-          resultBox.textContent = 'Browser storage unavailable. Please enable it.';
-          showLogin(resultBox.textContent);
-          return;
-        }
-
+        try { localStorage.setItem(TOKEN_KEY, sessionToken); }
+        catch (e) { resultBox.textContent = 'Browser storage unavailable. Please enable it.'; showLogin(resultBox.textContent); return; }
         showScanner();
-      } else {
-        resultBox.textContent =
-          (response && response.message) || 'Login failed.';
-      }
+      } else { resultBox.textContent = (response && response.message) || 'Login failed.'; }
     });
   }
 
-  // CHECK SAVED LOGIN
   function restoreLogin() {
-    try {
-      sessionToken = localStorage.getItem(TOKEN_KEY) || '';
-    } catch (e) {
-      sessionToken = '';
-    }
-
-    if (!sessionToken) {
-      showLogin('Enter PIN for first-time login.');
-      return;
-    }
-
+    try { sessionToken = localStorage.getItem(TOKEN_KEY) || ''; }
+    catch (e) { sessionToken = ''; }
+    if (!sessionToken) { showLogin('Enter PIN for first-time login.'); return; }
     showScanner();
   }
 
-  // SEND SCAN DATA WITH BOTH SO AND BOX ID
   function sendToERP(boxId, soNo, mode) {
-    if (!sessionToken) {
-      processing = false;
-      showLogin('Login required. Please enter PIN.');
-      return;
-    }
-
-    resultBox.textContent =
-      'Processing...\nSO: ' + soNo + '\nBox: ' + boxId;
-
-    sendRequest({
-      action: 'scan',
-      token: sessionToken,
-      boxId: boxId,
-      soNo: soNo,
-      scanType: mode,
-      vehicleNo: document.getElementById('vehicleNo').value.trim()
-    }, function(response) {
-
-      if (
-        response &&
-        response.success === false &&
-        String(response.message || '').toLowerCase().includes('session')
-      ) {
-        processing = false;
-        showLogin('Session expired. Please login again.');
-        return;
+    if (!sessionToken) { processing = false; showLogin('Login required. Please enter PIN.'); return; }
+    resultBox.textContent = 'Processing...\nSO: ' + soNo + '\nBox: ' + boxId;
+    sendRequest({ action:'scan', token:sessionToken, boxId:boxId, soNo:soNo, scanType:mode, vehicleNo:document.getElementById('vehicleNo').value.trim() }, function(response) {
+      if (response && response.success === false && String(response.message || '').toLowerCase().includes('session')) {
+        processing = false; showLogin('Session expired. Please login again.'); return;
       }
-
       if (response && response.success) {
-        resultBox.textContent =
-          'SUCCESS!\n\nSO: ' + soNo +
-          '\nBox: ' + response.boxId +
-          '\nStatus: ' + response.status +
-          '\n' + response.message;
+        resultBox.textContent = 'SUCCESS!\n\nSO: ' + soNo + '\nBox: ' + response.boxId + '\nStatus: ' + response.status + '\n' + response.message;
       } else {
-        resultBox.textContent =
-          'WARNING!\n\n' +
-          ((response && response.message) || 'Unknown ERP error');
+        resultBox.textContent = 'WARNING!\n\n' + ((response && response.message) || 'Unknown ERP error');
       }
-
       processing = false;
     });
   }
 
-  // START CAMERA
+  // Faster QR detection: 15 checks per second and responsive scan window.
   async function startScan(mode) {
     if (processing) return;
-
-    if (!sessionToken) {
-      showLogin('Please login before scanning.');
-      return;
-    }
-
-    if (!window.isSecureContext || !navigator.mediaDevices) {
-      resultBox.textContent = 'Camera requires a secure HTTPS browser.';
-      return;
-    }
-
-    if (typeof Html5Qrcode === 'undefined') {
-      resultBox.textContent = 'Scanner library load nahi hui. Internet check karein.';
-      return;
-    }
-
+    if (!sessionToken) { showLogin('Please login before scanning.'); return; }
+    if (!window.isSecureContext || !navigator.mediaDevices) { resultBox.textContent = 'Camera requires a secure HTTPS browser.'; return; }
+    if (typeof Html5Qrcode === 'undefined') { resultBox.textContent = 'Scanner library load nahi hui. Internet check karein.'; return; }
     await stopScan();
-
     scanMode = mode;
     processing = false;
-    scanner = new Html5Qrcode('reader');
-
+    scanner = new Html5Qrcode('reader', {
+      verbose: false,
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    });
     resultBox.textContent = mode + ' CAMERA STARTING...';
-
     try {
       await scanner.start(
-        { facingMode: 'environment' },
+        { facingMode:'environment' },
         {
-          fps: 10,
-          qrbox: { width: 240, height: 240 },
-          aspectRatio: 1
+          fps:20,
+          qrbox:function(viewfinderWidth, viewfinderHeight) {
+            const size = Math.floor(
+              Math.min(viewfinderWidth, viewfinderHeight) * 0.78
+            );
+            const boundedSize = Math.min(size, 360);
+            return { width:boundedSize, height:boundedSize };
+          },
+          aspectRatio:1,
+          disableFlip:true,
+          videoConstraints:{
+            facingMode:'environment',
+            width:{ ideal:1280 },
+            height:{ ideal:720 }
+          }
         },
         async function(decodedText) {
           if (processing) return;
-
           processing = true;
-
           let boxId = '';
           let soNo = '';
-
-          // Read SO and Box ID from QR URL
           try {
             const url = new URL(decodedText);
-
-            boxId = url.searchParams.get('box') ||
-                    url.searchParams.get('boxId') || '';
-
-            soNo = url.searchParams.get('so') ||
-                   url.searchParams.get('soNo') ||
-                   url.searchParams.get('so_no') || '';
-
+            boxId = url.searchParams.get('box') || url.searchParams.get('boxId') || '';
+            soNo = url.searchParams.get('so') || url.searchParams.get('soNo') || url.searchParams.get('so_no') || '';
           } catch (error) {
-
-            // JSON QR support
             try {
               const payload = JSON.parse(decodedText);
-
               boxId = payload.boxId || payload.box || '';
               soNo = payload.soNo || payload.so || payload.so_no || '';
-
-            } catch (jsonError) {
-              // Plain BOX-only QR is not accepted.
-            }
+            } catch (jsonError) { /* Plain BOX-only QR is not accepted. */ }
           }
-
           boxId = String(boxId).trim();
           soNo = String(soNo).trim();
-
           if (!/^BOX-[A-Z0-9-]+$/i.test(boxId)) {
-            resultBox.textContent =
-              'INVALID QR: Box ID missing or invalid. QR mein SO Number aur Box ID dono hone chahiye.';
-
-            processing = false;
-            return;
+            resultBox.textContent = 'INVALID QR: Box ID missing or invalid. QR mein SO Number aur Box ID dono hone chahiye.';
+            processing = false; return;
           }
-
           if (!soNo) {
-            resultBox.textContent =
-              'INVALID QR: SO Number missing. Sticker ka QR SO number + Box ID dono ke saath regenerate karein.';
-
-            processing = false;
-            return;
+            resultBox.textContent = 'INVALID QR: SO Number missing. Sticker ka QR SO number + Box ID dono ke saath regenerate karein.';
+            processing = false; return;
           }
-
           await stopScan();
           sendToERP(boxId, soNo, scanMode);
         }
       );
-
       resultBox.textContent = mode + ' CAMERA READY - QR scan karein.';
-
     } catch (error) {
       processing = false;
-      resultBox.textContent =
-        'CAMERA ERROR: ' + (error.message || String(error));
+      resultBox.textContent = 'CAMERA ERROR: ' + (error.message || String(error));
     }
   }
 
-  // STOP CAMERA
   async function stopScan() {
     if (!scanner) return;
-
     const oldScanner = scanner;
     scanner = null;
-
     try {
       if (oldScanner.isScanning) await oldScanner.stop();
       oldScanner.clear();
-    } catch (error) {
-      console.log(error);
-    }
+    } catch (error) { console.log(error); }
   }
 
-  // NEXT BOX
   async function resetScanner() {
-    await stopScan();
-    processing = false;
-    resultBox.textContent = 'Ready for next Box.';
+    await stopScan(); processing = false; resultBox.textContent = 'Ready for next Box.';
   }
 
-  // LOGOUT
   async function logoutOperator() {
-    await stopScan();
-    processing = false;
-    showLogin('Logged out. Enter PIN to login again.');
+    await stopScan(); processing = false; showLogin('Logged out. Enter PIN to login again.');
   }
 
   restoreLogin();
 </script>
-
 </body>
 </html>
