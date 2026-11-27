@@ -150,7 +150,7 @@
     });
   }
 
-  // Faster QR detection: 15 checks per second and responsive scan window.
+  // Stable mobile QR detection with a large responsive scan window.
   async function startScan(mode) {
     if (processing) return;
     if (!sessionToken) { showLogin('Please login before scanning.'); return; }
@@ -161,29 +161,22 @@
     processing = false;
     scanner = new Html5Qrcode('reader', {
       verbose: false,
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
     });
     resultBox.textContent = mode + ' CAMERA STARTING...';
     try {
       await scanner.start(
         { facingMode:'environment' },
         {
-          fps:20,
-          qrbox:function(viewfinderWidth, viewfinderHeight) {
-            const size = Math.floor(
-              Math.min(viewfinderWidth, viewfinderHeight) * 0.78
-            );
-            const boundedSize = Math.min(size, 360);
-            return { width:boundedSize, height:boundedSize };
+          // Conservative scan rate improves reliability on mid-range phones.
+          fps: 10,
+          // Keep the scan window large and proportional to the live preview.
+          qrbox: function(viewfinderWidth, viewfinderHeight) {
+            const size = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.88);
+            return { width: size, height: size };
           },
-          aspectRatio:1,
-          disableFlip:true,
-          videoConstraints:{
-            facingMode:'environment',
-            width:{ ideal:1280 },
-            height:{ ideal:720 }
-          }
+          // Let the browser choose the camera's natural preview ratio/resolution.
+          disableFlip: false
         },
         async function(decodedText) {
           if (processing) return;
@@ -215,7 +208,7 @@
           sendToERP(boxId, soNo, scanMode);
         }
       );
-      resultBox.textContent = mode + ' CAMERA READY - QR scan karein.';
+      resultBox.textContent = mode + ' CAMERA READY - QR ko scan box ke andar rakhein. Camera stable rakhein.';
     } catch (error) {
       processing = false;
       resultBox.textContent = 'CAMERA ERROR: ' + (error.message || String(error));
